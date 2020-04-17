@@ -13,11 +13,12 @@ for item in stl_list:
 #here would normally be the path imported
 	bpy.ops.import_mesh.stl(filepath=path_to_files)
 	bpy.ops.object.mode_set(mode='EDIT')
+	bpy.ops.mesh.print3d_clean_non_manifold(sides=3)
 	bpy.ops.mesh.print3d_check_intersect()
 	bpy.ops.mesh.print3d_select_report(index=0)
-	bpy.ops.mesh.delete(type='VERT')
+	bpy.ops.mesh.delete(type='FACE')
 	bpy.ops.mesh.select_all(action='TOGGLE')
-	bpy.ops.mesh.print3d_clean_non_manifold(sides=2)
+	bpy.ops.mesh.print3d_clean_non_manifold(sides=3)
 	
 
 #here make a separate folder inside of the folders with the stl to export the fixed stl files #to this folder
