@@ -1,4 +1,4 @@
-#kangarooF
+#kangaroo
 #author: Katherine Moody , contact: kmmo264@g.uky.edu
 #last edit: 4/18/2020
 #FEniCS fea solver for mechanical properites of otter generated RVE models
