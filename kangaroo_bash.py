@@ -1,8 +1,9 @@
 #kangarooF
-#author: Katherine Moody
-#last edit: 7/10/2019
-#FEniCS fea solver for mechanical properites of structures
-#Beck Group
+#author: Katherine Moody , contact: kmmo264@g.uky.edu
+#last edit: 4/18/2020
+#FEniCS fea solver for mechanical properites of otter generated RVE models
+#Beck Group Computational Materials Science at University of Kentucky
+#PI Dr. Matthew J Beck m.beck@uky.edu
 from __future__ import print_function
 import os
 import sys
@@ -12,14 +13,12 @@ from mshr import *
 from dolfin import *
 from ufl import nabla_div
 from mpi4py import MPI
+#importing model "f" from bash shell
 item = sys.argv[1]
-#import item
-#import matplotlib.pyplot as plt
+
 print('WELCOME TO KANGAROOF!!')
-###Setting up user classes
-#Creating boundaries for boundary conditions
-#file_name= input(sys.argv[1])i
-#output = open('mpi_test_1','w')
+#Setting up user classes
+#Defining print statements to return singular from multiple threads
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 def print_roo(text):
@@ -27,30 +26,10 @@ def print_roo(text):
         print(text,flush=True)
     return
 print_roo(item)
-#if rank == 0:
-#	file_name = input('Please type the name of your data output file: ')
-#else:
-#	file_name = None
-#file_name = comm.bcast(file_name, root=0)
 
-
-#if rank ==0:
-#	mesh_list = input('Please type the file path to your structures-forward slashes!!: ')
-#else:
-#	mesh_list = None
-#mesh_list = comm.bcast(mesh_list, root=0)
-#mesh_list = input('Please type the file path where your structures are located-use forward slashes!!: ')
-#def file_name():
-#	if rank == 0:
-#		input
-#	mesh_list = input('Please type the file path of your structures - forward slashes!!!: ')
-#else:
-#	print_roo('error with input')
-#	file_name = comm.bcast(file_name, root=0)
-#	mesh_list = comm.bcast(mesh_list, root=0)
-#else:
-#	print_roo('error with input')
-#output = open('B1aluminum','w')
+#Defining boundary conditions
+#All otter generated RVE are cubes of a specified length, and placed 500 from origin
+#Each boundary in fenics must be definied by a subdomain, in this case 6 domains for the faces of the "cube"
 print_roo('defining boundaries')
 tol = 1E-6
 
@@ -73,8 +52,7 @@ class BoundaryZ600(SubDomain):
 	def inside(self, x, on_boundary):
 		return x[2] >= 600.0 - tol
 
-###Variables and constants
-#Creating variable to mark the facets of the boundaries
+#Allocating variables to store nodes located at the boundary faces
 print_roo('marking boundaries')
 x500 = BoundaryX500()
 x600 = BoundaryX600()
@@ -87,26 +65,26 @@ z600 = BoundaryZ600()
 f = Constant((0, 0, 0))
 T = Constant((0, 0, 0))
 
-#material properties
-E = 69e9 #elastic modulus
-nu = 0.33 #poisson ratio
-#lame properties
+#Defining material properties
+#E- elastic modules (Pascals), nu - Poisson's ratio
+E = 69e9 
+nu = 0.33 
+#Lame properties
 mu =Constant(E/2/(1+nu))
 lmbda =Constant(E*nu/((1+nu)*(1-2*nu)))
 
-#creating the normal directions for post processing
+#Direction normals x, y, and z
 nx = Constant((1, 0, 0))
 ny = Constant((0, 1, 0))
 nz = Constant((0, 0, 1))
 
-###User functions
 #Strain
 def eps(u):
     return 0.5*(nabla_grad(u) + nabla_grad(u).T)
 #Stress
 def sigma(u):
     return lmbda*nabla_div(u)*Identity(3) + 2*mu*eps(u)
-#strain energy
+#Strain energy
 def en_dens(u):
     str_ele = eps(u)
     IC = tr(str_ele)
@@ -114,38 +92,26 @@ def en_dens(u):
     return (0.5*lmbda*IC**2) + mu*ICC
 
 
-###Loop preparations..
-#Setting up list of structures...
-#path_to_stls = "/scratch/kmmo264/C3/3/"
-#file_list = sorted(os.listdir(path_to_stls))
-#stl_list=[item for item in file_list if item.endswith('.off')]
-
-###Loop!
-#for item in stl_list:
-	#try:
-		#path_to_files = os.path.join(path_to_stls, item)
-		#msg = "Starting structure {}..."
-		#print_roo(msg.format(item))
+#Reads the model to create a surface for the structure, and generates a volume mesh based on surface, volume of the mesh is stored for output
 surface = Surface3D(item)
 mesh = generate_mesh(surface,0.5)
 volume = assemble(1*dx(mesh))
 
-	    #plot(mesh)
-		#plt.show()
-		#ax.auto_scale_xyz
+#Begin boundary conditions loop
+#Depending on direction of displacement, boundary conditions are changed accordingly
+#Current conditions are set for x, y, z, and hydrostatic displacements of 1%
 for ii in range(4):
 	gc.collect()
 	msg = "Starting calculation {}..."
 	print_roo(msg.format(ii)) 
-###FIRST X
-#Defining function space
+
+#Function space for calculations defined
 	V = VectorFunctionSpace(mesh, 'Lagrange', 3)
 
-#Creating variable for the searching of facets over the mesh
+#Set variable to mark boundaries in the mesh
 	boundaries = MeshFunction("size_t", mesh, mesh.topology().dim() -1)
-#setting all the boundaries at value zero so they can be assigned a number
 	boundaries.set_all(0)
-#marking the facets of the boundaries and assigning them a number
+#Mark the nodes on the boundaries based on the subdomain definitions defined above. Each "cube" face is assigned a number
 	x500.mark(boundaries, 1)
 	x600.mark(boundaries, 2)
 	y500.mark(boundaries, 3)
@@ -153,7 +119,7 @@ for ii in range(4):
 	z500.mark(boundaries, 5)
 	z600.mark(boundaries, 6)
 
-#setting boundary conditions for uniaxial displacement x
+#Boundary conditions set for each displacement direction
 	print_roo('assigning boundary conditions')
 
 	if ii == 0:
@@ -191,19 +157,20 @@ for ii in range(4):
 	else:
 		print_roo('Error selecting boundary conditions!')
 
-#Creating functions for defining variables and solving
+#Setting up variables for function space and solving
 	print_roo('Setting up equations')
 	v = TestFunction(V) 
 	u_ = TrialFunction(V)
 
-#creating our right hand and left hand side equations for solving
+#Right and Left hand side of elasticity equation
 	a = inner(sigma(u_), eps(v))*dx
 	L = dot(f, v)*dx + dot(T, v)*ds
 
 	u = Function(V)
 	print_roo('starting linear solve')
-#solving for nodal displacement u
-			#solve(a==L, u, bcx)
+
+#Setting up solver
+#Currently Krylov Solver is implemented to solve by an iterative process with tolerances
 	prblm = LinearVariationalProblem(a, L, u, bcx)
 	solver = LinearVariationalSolver(prblm)
 	MAX_ITERS = 6000
@@ -217,21 +184,16 @@ for ii in range(4):
 	solver.solve()
 	print_roo('finished solving, calculating str??')
 
-#defining stress, strain, and strain energy
+#Defining stress, strain, and strain energy in terms of the displacment u
 	sigma_out = sigma(u)
 	epsilon_out = eps(u)
 	UU = 0.5*(sigma_out*epsilon_out)
-			#print_roo('strain energy x calculation')
-#projecting strain energy in the x direction and integrating over the mesh
 
+#Depending on normal direction being observed, solution is projected into the function space and assembled over the mesh to output total strain energies in each direction
 	if ii == 0:
 		uxx = project(dot(dot(UU, nx), nx), FunctionSpace(mesh,'CG', 1))
 		strXX = assemble(uxx*dx)
 		print_roo(strXX)
-				#displacement = File(item + 'structuredisplacement.pvd')
-				#displacement << u
-				#energy = File(item + 'structurestrainenergy.pvd')
-				#energy << uxx
 	elif ii == 1:
 		uxx = project(dot(dot(UU, ny), ny), FunctionSpace(mesh,'CG', 1))
 		strYY = assemble(uxx*dx)
@@ -251,14 +213,8 @@ for ii in range(4):
 		strHH = strHHx + strHHy + strHHz
 	else:
 		print_roo('Error calculating str??')
-			#plot(uxx)
-			#plt.show()
-			#print_roo(strXX)
-			#print_roo('setting boundary conditions for y')
-#deleting what I can	
-			#mesh_file = File('fiberesh.pvd')
-			#mesh_file << mesh
-			#print_roo('deleting variables...')
+
+#Cleaning up memory and variables to avoid overwrites
 	del V
 	del boundaries
 	del bcx1
@@ -279,13 +235,11 @@ for ii in range(4):
 	del epsilon_out
 	del UU
 	del uxx
-			#del sigma_out
-			#del epsilon_out
 
 print_roo('Done with all four calculations.')
-		#print_roo(strHH)
-		#print_roo('beginning property calculations')
-#calculations for bulk, stiffness, and poisson
+
+#Use solution for post processing
+#Mechanical properties extraction
 U_Ux = strXX/(100**3)/1000000000
 U_H = strHH/(100**3)/1000000000
 vx = (3*U_Ux-U_H)/(-3*U_Ux-U_H)
@@ -302,28 +256,17 @@ Ez = (2*nzz*U_Uz)/(1-vz)/((0.01**2))
 vAvg = (vx+vy+vz)/3  
 EAvg = (Ex+Ey+Ez)/3  
 Bulk = (2*U_H)/((0.03**2))
-		#print_roo("Ave. Poisson Ratio =", vAvg)
-		#print_roo("Ave. Elastic Modulus =", EAvg)
-		#print_roo("Bulk Modulus =", Bulk)
+
+#Writing out material properties into output file
 output = open(item, 'w')
-output.write("%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n" %("structure =", item, "volume=", volume, "Ex=", Ex, "Ey=", Ey, "Ez=", Ez, "E.avg=", EAvg, "v.avg=", vAvg, "Bulk=", Bulk))
+output.write("%s %s %s %s %s %s %s %s %s %s\n" %("structure =", item, "volume=", volume, "E.avg=", EAvg, "v.avg=", vAvg, "Bulk=", Bulk))
 output.close()
-		#output.write("%s" %item)
-		#output.write("%s" %" volume=")
-		#output.write("%s" %volume)
-		#output.write("%s" %" E.avg=")
-		#output.write("%s" %EAvg)
-		#output.write("%s" %" v.avg=")
-		#output.write("%s" %vAvg)
-		#output.write("%s" %" Bulk=")
-		#output.write("%s\n" %Bulk)
 
 print_roo('Done with extracting mechanical properties!')
-		#uzz = None
+
+#Deleting leftover variables
 del strZZ
-		#uyy = None
 del strYY
-		#uxx = None
 del strXX
 del mesh
 del surface
@@ -350,25 +293,6 @@ del strHHz
 del uhhx
 del uhhy
 del uhhz
-	#except:
-#surface = None
-#mesh = None
-#u = None
-#volume = None
-#boundaries = None
-#u_ = None
-#a = None
-#v = None
-#bx1 = None
-#bx2 = None
-#bz1 = None
-#bz2 = None
-#by1 = None
-#		by2 = None
-#		L = None
-#		prblm = None
-#		solver = None
-#		print_roo('Caught Exception')
-#		continue
 
-print_roo('At end')
+
+print_roo('Finished!')
